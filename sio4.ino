@@ -1,5 +1,8 @@
 // =================================================================================================
 
+#include <avr/power.h>
+#include <avr/sleep.h>
+
 #include <YetAnotherPcInt.h>
 
 // -------------------------------------------------------------------------------------------------
@@ -8,7 +11,11 @@ constexpr int8_t c_upperLeftButtonPin = 8;
 constexpr int8_t c_upperRightButtonPin = 11;
 constexpr int8_t c_lowerRightButtonPin = 10;
 
+constexpr int8_t c_leftLedPin = 13;
+constexpr int8_t c_rightLedPin = 6;
+
 // -------------------------------------------------------------------------------------------------
+// Button state and interrupt handlers.
 
 volatile bool upperLeftButtonPressed = false;
 volatile bool upperRightButtonPressed = false;
@@ -26,64 +33,58 @@ void buttonLrbIsr(bool pinState) {
 
 int count = 0;
 
-void logMessage() {
-  Serial.begin(9600);
-  Serial.print("This is message "); Serial.println(count++);
-  Serial.end();
+void logMessage(const char* msg) {
+  Serial.print(count++); Serial.print(": ");
+  Serial.println(msg);
 }
 
 // -------------------------------------------------------------------------------------------------
 
 void setup() {
+  // Pull the button pins high.
   pinMode(c_upperLeftButtonPin, INPUT_PULLUP);
   pinMode(c_upperRightButtonPin, INPUT_PULLUP);
   pinMode(c_lowerRightButtonPin, INPUT_PULLUP);
 
+  // Set the LED pins for output.
+  pinMode(c_leftLedPin, OUTPUT);
+  pinMode(c_rightLedPin, OUTPUT);
+
+  // Install an ISR for LRB.
   PcInt::attachInterrupt(c_lowerRightButtonPin, buttonLrbIsr, CHANGE);
+
+  Serial.begin(9600);
 }
 
 // -------------------------------------------------------------------------------------------------
 
 void loop() {
-  Serial.begin(9600);
-  Serial.print("LRB is "); Serial.println(lowerRightButtonPressed ? "ON" : "OFF");
-  Serial.print("interrupt count: "); Serial.println(interruptCount);
-  Serial.end();
+  // Flash 3 times.
+  for (int16_t count = 0; count < 3; count++) {
+    delay(950);
+    digitalWrite(c_rightLedPin, HIGH);
+    delay(50);
+    digitalWrite(c_rightLedPin, LOW);
+  }
 
-  delay(1000);
-}
-
-#if 0
-void loop_sleep() {
-  // Disable ADC System via PRR Register Bit 0 (PRADC)
+  // Power down everything.
   power_adc_disable();
-
-  // Setup SleepMode , see https://www.gammon.com.au/forum/?id=11497
-  set_sleep_mode (SLEEP_MODE_PWR_DOWN);
-
-  // Enable Sleep Mode by setting SMCR Register Bit 0 and send the CPU to sleep
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
 
-  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(BUTTON3), wakeFromBUTTON, FALLING);
-
-  // Put CPU to sleep.
+  // Sleep.
   sleep_cpu();
 
-  // Wake.
+  // ... wake.
 
-  // Disable sleep
+  // Power up.
   sleep_disable();
-
-  // Disable 32u4 MPU interrupt(s)
-  detachPinChangeInterrupt(digitalPinToPinChangeInterrupt(BUTTON3));
-
-  // Enable ADC via PRR Register Bit 0 (PRADC)
   power_adc_enable();
 
-  // Log message.
-  logMessage();
+  digitalWrite(c_leftLedPin, HIGH);
+  delay(1000);
+  digitalWrite(c_leftLedPin, LOW);
 }
-#endif
 
 // =================================================================================================
 // vim:ft=cpp
