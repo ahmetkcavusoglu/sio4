@@ -7,12 +7,19 @@
 
 // -------------------------------------------------------------------------------------------------
 
+// XXX don't forget about PROGMEM either, for static buffers...
+
 constexpr int8_t c_upperLeftButtonPin = 8;
 constexpr int8_t c_upperRightButtonPin = 11;
 constexpr int8_t c_lowerRightButtonPin = 10;
 
 constexpr int8_t c_leftLedPin = 13;
 constexpr int8_t c_rightLedPin = 6;
+
+constexpr int8_t c_batteryReadEnablePin = 4;
+constexpr int8_t c_batteryPin = A11;
+
+constexpr int8_t c_chargingPin = 5;
 
 // -------------------------------------------------------------------------------------------------
 // Button state and interrupt handlers.
@@ -31,15 +38,6 @@ void buttonLrbIsr(bool pinState) {
 
 // -------------------------------------------------------------------------------------------------
 
-int count = 0;
-
-void logMessage(const char* msg) {
-  Serial.print(count++); Serial.print(": ");
-  Serial.println(msg);
-}
-
-// -------------------------------------------------------------------------------------------------
-
 void setup() {
   // Pull the button pins high.
   pinMode(c_upperLeftButtonPin, INPUT_PULLUP);
@@ -50,6 +48,13 @@ void setup() {
   pinMode(c_leftLedPin, OUTPUT);
   pinMode(c_rightLedPin, OUTPUT);
 
+  // Set the battery read enable pin for output and the charging pin for input.
+  pinMode(c_batteryReadEnablePin, OUTPUT);
+  pinMode(c_chargingPin, INPUT_PULLUP);
+
+  // Enable USB VBUS pad so we can read the power state from the USB status register.
+  USBCON |= bit(OTGPADE);
+
   // Install an ISR for LRB.
   PcInt::attachInterrupt(c_lowerRightButtonPin, buttonLrbIsr, CHANGE);
 
@@ -58,15 +63,7 @@ void setup() {
 
 // -------------------------------------------------------------------------------------------------
 
-void loop() {
-  // Flash 3 times.
-  for (int16_t count = 0; count < 3; count++) {
-    delay(950);
-    digitalWrite(c_rightLedPin, HIGH);
-    delay(50);
-    digitalWrite(c_rightLedPin, LOW);
-  }
-
+void powerDown() {
   // Power down everything.
   power_adc_disable();
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
@@ -80,10 +77,67 @@ void loop() {
   // Power up.
   sleep_disable();
   power_adc_enable();
+}
+
+// -------------------------------------------------------------------------------------------------
+
+float getRawBattery() {
+  digitalWrite(c_batteryReadEnablePin, HIGH);
+  delay(50);
+  float value = analogRead(c_batteryPin);
+  digitalWrite(c_batteryReadEnablePin, LOW);
+  return value;
+}
+
+bool getUsbAttached() {
+  // We can test if a USB data connection is up; UDADDR is the USB address register, and the ADDEN
+  // bit is whether the address is enabled.
+  return (UDADDR & bit(ADDEN)) != 0;
+}
+
+bool getUsbPowered() {
+  // We can test if we're seeing power from USB; USBSTA is a USB status register and the VBUS bit
+  // tells us there's power.
+  return (USBSTA & bit(VBUS)) != 0;
+}
+
+bool getCharging() {
+  // The charging status pin is low while charging, high once fully charged.
+  return getUsbPowered() && digitalRead(c_chargingPin) == LOW;
+}
+
+// -------------------------------------------------------------------------------------------------
+
+void temp_sleepAndFlash() {
+  // Flash 3 times.
+  for (int16_t count = 0; count < 3; count++) {
+    delay(950);
+    digitalWrite(c_rightLedPin, HIGH);
+    delay(50);
+    digitalWrite(c_rightLedPin, LOW);
+  }
+
+  powerDown();
 
   digitalWrite(c_leftLedPin, HIGH);
   delay(1000);
   digitalWrite(c_leftLedPin, LOW);
+}
+
+void loop() {
+  delay(2000);
+
+  Serial.print("battery: ");  Serial.println(getRawBattery());
+
+  if (getUsbPowered()) {
+    digitalWrite(c_leftLedPin, HIGH);
+  }
+  if (getCharging()) {
+    digitalWrite(c_rightLedPin, HIGH);
+  }
+  delay(100);
+  digitalWrite(c_leftLedPin, LOW);
+  digitalWrite(c_rightLedPin, LOW);
 }
 
 // =================================================================================================
