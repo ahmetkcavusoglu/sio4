@@ -1,8 +1,11 @@
 // =================================================================================================
 
+#include <Wire.h>
+
 #include <avr/power.h>
 #include <avr/sleep.h>
 
+#include <uRTCLib.h>
 #include <YetAnotherPcInt.h>
 
 // -------------------------------------------------------------------------------------------------
@@ -38,7 +41,14 @@ void buttonLrbIsr(bool pinState) {
 
 // -------------------------------------------------------------------------------------------------
 
+uRTCLib rtc(URTCLIB_ADDRESS);   // I2C address.
+
+// -------------------------------------------------------------------------------------------------
+
 void setup() {
+  Serial.begin(9600);
+  Wire.begin();
+
   // Pull the button pins high.
   pinMode(c_upperLeftButtonPin, INPUT_PULLUP);
   pinMode(c_upperRightButtonPin, INPUT_PULLUP);
@@ -58,7 +68,10 @@ void setup() {
   // Install an ISR for LRB.
   PcInt::attachInterrupt(c_lowerRightButtonPin, buttonLrbIsr, CHANGE);
 
-  Serial.begin(9600);
+  // Init the RTC.
+  rtc.set_model(URTCLIB_MODEL_DS3231);
+  // XXX set it to bogus datetime
+  rtc.set(0, 0, 16, 4, 25, 6, 20);  // Thu 25/6/20 4:00:00pm.
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -125,9 +138,24 @@ void temp_sleepAndFlash() {
 }
 
 void loop() {
+#if 1
+  digitalWrite(c_leftLedPin, HIGH);
+  delay(10000);
+  digitalWrite(c_leftLedPin, LOW);
+
+  temp_sleepAndFlash();
+#else
+
   delay(2000);
 
   Serial.print("battery: ");  Serial.println(getRawBattery());
+  Serial.print("time: ");
+
+  rtc.refresh();
+  Serial.print(rtc.day()); Serial.print('/'); Serial.print(rtc.month()); Serial.print('/'); Serial.print(rtc.year()); Serial.print(' ');
+  Serial.print(rtc.hour()); Serial.print(':'); Serial.print(rtc.minute()); Serial.print(':'); Serial.println(rtc.second());
+
+  Serial.print("temp: "); Serial.println(rtc.temp());
 
   if (getUsbPowered()) {
     digitalWrite(c_leftLedPin, HIGH);
@@ -138,6 +166,7 @@ void loop() {
   delay(100);
   digitalWrite(c_leftLedPin, LOW);
   digitalWrite(c_rightLedPin, LOW);
+#endif
 }
 
 // =================================================================================================
