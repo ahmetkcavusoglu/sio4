@@ -5,8 +5,13 @@
 #include <avr/power.h>
 #include <avr/sleep.h>
 
+#include <SSD1306Ascii.h>
+#include <SSD1306AsciiSpi.h>
 #include <uRTCLib.h>
 #include <YetAnotherPcInt.h>
+
+#define FONT_TO_USE font5x7
+#include "font5x7.h"
 
 // -------------------------------------------------------------------------------------------------
 
@@ -23,6 +28,10 @@ constexpr int8_t c_batteryReadEnablePin = 4;
 constexpr int8_t c_batteryPin = A11;
 
 constexpr int8_t c_chargingPin = 5;
+
+constexpr int8_t c_oledDataCommandPin = A3;
+constexpr int8_t c_oledChipSelectPin = A5;
+constexpr int8_t c_oledResetPin = A4;
 
 // -------------------------------------------------------------------------------------------------
 // Button state and interrupt handlers.
@@ -41,6 +50,7 @@ void buttonLrbIsr(bool pinState) {
 
 // -------------------------------------------------------------------------------------------------
 
+SSD1306AsciiSpi oled;
 uRTCLib rtc(URTCLIB_ADDRESS);   // I2C address.
 
 // -------------------------------------------------------------------------------------------------
@@ -72,6 +82,11 @@ void setup() {
   rtc.set_model(URTCLIB_MODEL_DS3231);
   // XXX set it to bogus datetime
   rtc.set(0, 0, 16, 4, 25, 6, 20);  // Thu 25/6/20 4:00:00pm.
+
+  // Init the display.
+  oled.begin(&Adafruit128x64, c_oledChipSelectPin, c_oledDataCommandPin, c_oledResetPin);
+  oled.setFont(FONT_TO_USE);
+  oled.clear();
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -120,6 +135,124 @@ bool getCharging() {
 }
 
 // -------------------------------------------------------------------------------------------------
+// This face looks great with the cp437 font, but it's 8x8 and just too wide (128 / 8 == 16 chars
+// per row, not enough for the ~20 we need.)
+
+#if 0
+void printDOSFace(int8_t month, int8_t day, int8_t hour, int8_t minute, int16_t battery, int16_t temp) {
+  auto printTimeFormat = [](int8_t first, int8_t second) {
+    oled.print(first / 10);
+    oled.print(first % 10);
+    oled.print(':');
+    oled.print(second / 10);
+    oled.print(second % 10);
+  };
+
+  // Use 12 hour time.
+  if (hour > 12) {
+    hour -= 12;
+  }
+
+  // First line: Directory of C:/
+  oled.setCursor(0, 0);
+  oled.print("Directory of C:\\");
+
+  // Second line: autoexec.bat with time.
+  oled.setCursor(0, 2);
+  oled.print("AUTOEXEC  BAT   ");
+  printTimeFormat(hour, minute);
+
+  // Third line: config.sys with date.
+  oled.setCursor(0, 3);
+  oled.print("CONFIG    SYS   ");
+  printTimeFormat(month, day);
+
+  // Fourth line: games directory.
+  oled.setCursor(0, 4);
+  oled.print("GAMES    <DIR>  ");
+
+  // Fifth line: file and bytes counts with temperature.
+  oled.setCursor(0, 5);
+  oled.print(" 3 file(s) ");
+  oled.print(temp);
+  oled.print(" bytes");
+  oled.clearToEOL();
+
+  // Sixth line: bytes free with battery.
+  oled.setCursor(0, 6);
+  oled.print(' ');
+  oled.print(battery);
+  oled.print(" bytes free");
+
+  // Seventh line: command prompt.
+  oled.setCursor(0, 7);
+  oled.print("C:\\>_");
+}
+#endif
+
+// -------------------------------------------------------------------------------------------------
+// A `top` alternative:
+//
+// 12:34 up 6:51  1 user
+// load avg: 0.5,2.5,0.3
+// mem: 123KB swap: 40KB
+// PID USER %CPU COMMAND
+// 1   root 0.0  init
+// 16  root 0.1  sshd
+// 23  root 0.0  etc...
+// 45  toby  99  somet
+
+// -------------------------------------------------------------------------------------------------
+// This face mimics the output of `ps -ax`.
+
+void printPsFace(int8_t month, int8_t day, int8_t hour, int8_t minute, int16_t battery, int16_t temp) {
+  // Use 12 hour time.
+  //if (hour > 12) {
+  //  hour -= 12;
+  //}
+
+  oled.setCursor(0, 0);
+  oled.print("$ ps -ax");
+
+  oled.setCursor(0, 1);
+  oled.print("PID TTY TIME  CMD");
+
+  oled.setCursor(0, 2);
+  oled.print("  0  -  ");
+  oled.print(hour / 10); oled.print(hour % 10);
+  oled.print(':');
+  oled.print(minute / 10); oled.print(minute % 10);
+  oled.print(" kernel");
+
+  oled.setCursor(0, 3);
+  oled.print("  1  -  ");
+  oled.print(month / 10); oled.print(month % 10);
+  oled.print(':');
+  oled.print(day / 10); oled.print(day % 10);
+  oled.print(" init");
+
+  oled.setCursor(0, 4);
+  oled.print(" 12  -  89:47 [idle]");
+
+  oled.setCursor(0, 5);
+  oled.print(" 54  -  02:17 sshd");
+
+  oled.setCursor(0, 6);
+  oled.print(battery);
+  oled.print("  0  00:42 bash");
+
+  oled.setCursor(0, 7);
+  oled.print("722  0  ");
+  oled.print(temp / 1000);
+  oled.print((temp / 100) % 10);
+  oled.print(':');
+  oled.print((temp / 10) % 10);
+  oled.print(temp % 10);
+  oled.print(" ps");
+  oled.clearToEOL();
+}
+
+// -------------------------------------------------------------------------------------------------
 
 void temp_sleepAndFlash() {
   // Flash 3 times.
@@ -138,7 +271,7 @@ void temp_sleepAndFlash() {
 }
 
 void loop() {
-#if 1
+#if 0
   digitalWrite(c_leftLedPin, HIGH);
   delay(10000);
   digitalWrite(c_leftLedPin, LOW);
@@ -148,14 +281,9 @@ void loop() {
 
   delay(2000);
 
-  Serial.print("battery: ");  Serial.println(getRawBattery());
-  Serial.print("time: ");
-
   rtc.refresh();
-  Serial.print(rtc.day()); Serial.print('/'); Serial.print(rtc.month()); Serial.print('/'); Serial.print(rtc.year()); Serial.print(' ');
-  Serial.print(rtc.hour()); Serial.print(':'); Serial.print(rtc.minute()); Serial.print(':'); Serial.println(rtc.second());
-
-  Serial.print("temp: "); Serial.println(rtc.temp());
+  printPsFace(rtc.month(), rtc.day(), rtc.hour(), rtc.minute(),
+              static_cast<int16_t>(getRawBattery()), rtc.temp());
 
   if (getUsbPowered()) {
     digitalWrite(c_leftLedPin, HIGH);
