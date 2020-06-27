@@ -49,9 +49,10 @@ void buttonLrbIsr(bool pinState) {
 }
 
 // -------------------------------------------------------------------------------------------------
+// Global instances.
 
-SSD1306AsciiSpi oled;
-uRTCLib rtc(URTCLIB_ADDRESS);   // I2C address.
+SSD1306AsciiSpi g_oled;
+uRTCLib g_rtc(URTCLIB_ADDRESS);   // I2C address.
 
 // -------------------------------------------------------------------------------------------------
 
@@ -79,21 +80,21 @@ void setup() {
   PcInt::attachInterrupt(c_lowerRightButtonPin, buttonLrbIsr, CHANGE);
 
   // Init the RTC.
-  rtc.set_model(URTCLIB_MODEL_DS3231);
+  g_rtc.set_model(URTCLIB_MODEL_DS3231);
   // XXX set it to bogus datetime
-  rtc.set(0, 0, 16, 4, 25, 6, 20);  // Thu 25/6/20 4:00:00pm.
+  g_rtc.set(0, 0, 16, 4, 25, 6, 20);  // Thu 25/6/20 4:00:00pm.
 
   // Init the display.
-  oled.begin(&Adafruit128x64, c_oledChipSelectPin, c_oledDataCommandPin, c_oledResetPin);
-  oled.setFont(FONT_TO_USE);
-  oled.clear();
+  g_oled.begin(&Adafruit128x64, c_oledChipSelectPin, c_oledDataCommandPin, c_oledResetPin);
+  g_oled.setFont(FONT_TO_USE);
+  g_oled.clear();
 }
 
 // -------------------------------------------------------------------------------------------------
 
 void powerDown() {
   // Power down everything.
-  oled.ssd1306WriteCmd(SSD1306_DISPLAYOFF);
+  g_oled.ssd1306WriteCmd(SSD1306_DISPLAYOFF);
   power_adc_disable();
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
@@ -106,7 +107,7 @@ void powerDown() {
   // Power up.
   sleep_disable();
   power_adc_enable();
-  oled.ssd1306WriteCmd(SSD1306_DISPLAYON);
+  g_oled.ssd1306WriteCmd(SSD1306_DISPLAYON);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -144,11 +145,11 @@ bool getCharging() {
 #if 0
 void printDOSFace(int8_t month, int8_t day, int8_t hour, int8_t minute, int16_t battery, int16_t temp) {
   auto printTimeFormat = [](int8_t first, int8_t second) {
-    oled.print(first / 10);
-    oled.print(first % 10);
-    oled.print(':');
-    oled.print(second / 10);
-    oled.print(second % 10);
+    g_oled.print(first / 10);
+    g_oled.print(first % 10);
+    g_oled.print(':');
+    g_oled.print(second / 10);
+    g_oled.print(second % 10);
   };
 
   // Use 12 hour time.
@@ -157,39 +158,39 @@ void printDOSFace(int8_t month, int8_t day, int8_t hour, int8_t minute, int16_t 
   }
 
   // First line: Directory of C:/
-  oled.setCursor(0, 0);
-  oled.print("Directory of C:\\");
+  g_oled.setCursor(0, 0);
+  g_oled.print("Directory of C:\\");
 
   // Second line: autoexec.bat with time.
-  oled.setCursor(0, 2);
-  oled.print("AUTOEXEC  BAT   ");
+  g_oled.setCursor(0, 2);
+  g_oled.print("AUTOEXEC  BAT   ");
   printTimeFormat(hour, minute);
 
   // Third line: config.sys with date.
-  oled.setCursor(0, 3);
-  oled.print("CONFIG    SYS   ");
+  g_oled.setCursor(0, 3);
+  g_oled.print("CONFIG    SYS   ");
   printTimeFormat(month, day);
 
   // Fourth line: games directory.
-  oled.setCursor(0, 4);
-  oled.print("GAMES    <DIR>  ");
+  g_oled.setCursor(0, 4);
+  g_oled.print("GAMES    <DIR>  ");
 
   // Fifth line: file and bytes counts with temperature.
-  oled.setCursor(0, 5);
-  oled.print(" 3 file(s) ");
-  oled.print(temp);
-  oled.print(" bytes");
-  oled.clearToEOL();
+  g_oled.setCursor(0, 5);
+  g_oled.print(" 3 file(s) ");
+  g_oled.print(temp);
+  g_oled.print(" bytes");
+  g_oled.clearToEOL();
 
   // Sixth line: bytes free with battery.
-  oled.setCursor(0, 6);
-  oled.print(' ');
-  oled.print(battery);
-  oled.print(" bytes free");
+  g_oled.setCursor(0, 6);
+  g_oled.print(' ');
+  g_oled.print(battery);
+  g_oled.print(" bytes free");
 
   // Seventh line: command prompt.
-  oled.setCursor(0, 7);
-  oled.print("C:\\>_");
+  g_oled.setCursor(0, 7);
+  g_oled.print("C:\\>_");
 }
 #endif
 // }}}
@@ -215,54 +216,54 @@ void printPsFace(int8_t month, int8_t day, int8_t hour, int8_t minute, int16_t b
   //  hour -= 12;
   //}
 
-  oled.setCursor(0, 0);
-  oled.print("$ ps -ax");
+  g_oled.setCursor(0, 0);
+  g_oled.print("$ ps -ax");
 
-  oled.setCursor(0, 1);
-  oled.print("PID TTY TIME  CMD");
+  g_oled.setCursor(0, 1);
+  g_oled.print("PID TTY TIME  CMD");
 
-  oled.setCursor(0, 2);
-  oled.print("  0  -  ");
-  oled.print(hour / 10); oled.print(hour % 10);
-  oled.print(':');
-  oled.print(minute / 10); oled.print(minute % 10);
-  oled.print(" kernel");
+  g_oled.setCursor(0, 2);
+  g_oled.print("  0  -  ");
+  g_oled.print(hour / 10); g_oled.print(hour % 10);
+  g_oled.print(':');
+  g_oled.print(minute / 10); g_oled.print(minute % 10);
+  g_oled.print(" kernel");
 
-  oled.setCursor(0, 3);
-  oled.print("  1  -  ");
-  oled.print(month / 10); oled.print(month % 10);
-  oled.print(':');
-  oled.print(day / 10); oled.print(day % 10);
-  oled.print(" init");
+  g_oled.setCursor(0, 3);
+  g_oled.print("  1  -  ");
+  g_oled.print(month / 10); g_oled.print(month % 10);
+  g_oled.print(':');
+  g_oled.print(day / 10); g_oled.print(day % 10);
+  g_oled.print(" init");
 
-  oled.setCursor(0, 4);
-  oled.print(" 12  -  89:47 [idle]");
+  g_oled.setCursor(0, 4);
+  g_oled.print(" 12  -  89:47 [idle]");
 
-  oled.setCursor(0, 5);
-  oled.print(" 54  -  02:17 sshd");
+  g_oled.setCursor(0, 5);
+  g_oled.print(" 54  -  02:17 sshd");
 
-  oled.setCursor(0, 6);
-  oled.print(battery);
-  oled.print("  0  00:42 bash");
+  g_oled.setCursor(0, 6);
+  g_oled.print(battery);
+  g_oled.print("  0  00:42 bash");
 
-  oled.setCursor(0, 7);
-  oled.print("722  0  ");
-  oled.print(temp / 1000);
-  oled.print((temp / 100) % 10);
-  oled.print(':');
-  oled.print((temp / 10) % 10);
-  oled.print(temp % 10);
-  oled.print(" ps");
-  oled.clearToEOL();
+  g_oled.setCursor(0, 7);
+  g_oled.print("722  0  ");
+  g_oled.print(temp / 1000);
+  g_oled.print((temp / 100) % 10);
+  g_oled.print(':');
+  g_oled.print((temp / 10) % 10);
+  g_oled.print(temp % 10);
+  g_oled.print(" ps");
+  g_oled.clearToEOL();
 }
 
 // -------------------------------------------------------------------------------------------------
 
 void loop() {
   // Show the time, battery and temp for 4 seconds.
-  rtc.refresh();
-  printPsFace(rtc.month(), rtc.day(), rtc.hour(), rtc.minute(),
-              static_cast<int16_t>(getRawBattery()), rtc.temp());
+  g_rtc.refresh();
+  printPsFace(g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(),
+              static_cast<int16_t>(getRawBattery()), g_rtc.temp());
   delay(4000);
 
   // Power down
