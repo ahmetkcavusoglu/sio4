@@ -33,6 +33,8 @@ constexpr int8_t c_oledDataCommandPin = A3;
 constexpr int8_t c_oledChipSelectPin = A5;
 constexpr int8_t c_oledResetPin = A4;
 
+constexpr int32_t c_defaultShowtimeTimeoutMs = 8000;
+
 // -------------------------------------------------------------------------------------------------
 // Button state and interrupt handlers.
 
@@ -57,7 +59,6 @@ uRTCLib g_rtc(URTCLIB_ADDRESS);   // I2C address.
 // -------------------------------------------------------------------------------------------------
 
 void setup() {
-  Serial.begin(9600);
   Wire.begin();
 
   // Pull the button pins high.
@@ -81,13 +82,16 @@ void setup() {
 
   // Init the RTC.
   g_rtc.set_model(URTCLIB_MODEL_DS3231);
-  // XXX set it to bogus datetime
-  g_rtc.set(0, 0, 16, 4, 25, 6, 20);  // Thu 25/6/20 4:00:00pm.
 
   // Init the display.
   g_oled.begin(&Adafruit128x64, c_oledChipSelectPin, c_oledDataCommandPin, c_oledResetPin);
   g_oled.setFont(FONT_TO_USE);
   g_oled.clear();
+
+  // Read the current date and time from the serial port just once.
+  if (getUsbAttached()) {
+    readDateTimeFromSerial();
+  }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -135,6 +139,50 @@ bool getUsbPowered() {
 bool getCharging() {
   // The charging status pin is low while charging, high once fully charged.
   return getUsbPowered() && digitalRead(c_chargingPin) == LOW;
+}
+
+// -------------------------------------------------------------------------------------------------
+// Read the date and time values from the serial port.  Useful for booting after reset.  Will prompt
+// for the correct values (year, month, day, etc.) one after the other.
+
+bool readDateTimeFromSerial() {
+  // Display an info message on the display.
+  g_oled.setCursor(0, 3);
+  g_oled.print("Waiting for time to");
+  g_oled.setCursor(0, 4);
+  g_oled.print("be set from serial...");
+
+  Serial.begin(9600);
+  Serial.setTimeout(60 * 1000);
+
+  // Since this is happening at boot time we need to allow for a connection to be made before we
+  // start prompting.
+  for (int countdown = 0; countdown < 10; countdown++) {
+    Serial.print("Prompting for date in... "); Serial.print(10 - countdown); Serial.println('s');
+    delay(1000);
+  }
+
+  auto readValueWithPrompt = [](const char* prompt) -> uint8_t {
+    Serial.print(prompt);
+    uint8_t value = Serial.parseInt();
+    Serial.print("Got: "); Serial.println(value);
+    return value;
+  };
+
+  // If year is a zero then we probably had a timeout (it's not Y2K) and so we can just abort.
+  uint8_t year = readValueWithPrompt("Year? (00-99, 0 to skip) ");
+  if (year != 0) {
+    uint8_t month = readValueWithPrompt("Month? (1-12) ");
+    uint8_t day = readValueWithPrompt("Day? (1-31) ");
+    uint8_t dayOfWeek = readValueWithPrompt("Weekday? (S 0, M 1, T 2, W 3, T 4, F 5, S 6) ");
+    uint8_t hour = readValueWithPrompt("Hour? (0-23) ");
+    uint8_t minute = readValueWithPrompt("Minute? (0-59) ");
+
+    g_rtc.set(0, minute, hour, dayOfWeek, day, month, year);
+  }
+
+  Serial.end();
+  g_oled.clear();
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -264,7 +312,7 @@ void loop() {
   g_rtc.refresh();
   printPsFace(g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(),
               static_cast<int16_t>(getRawBattery()), g_rtc.temp());
-  delay(4000);
+  delay(c_defaultShowtimeTimeoutMs);
 
   // Power down
   powerDown();
