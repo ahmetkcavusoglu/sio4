@@ -93,6 +93,7 @@ void setup() {
 
 void powerDown() {
   // Power down everything.
+  oled.ssd1306WriteCmd(SSD1306_DISPLAYOFF);
   power_adc_disable();
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
@@ -105,6 +106,7 @@ void powerDown() {
   // Power up.
   sleep_disable();
   power_adc_enable();
+  oled.ssd1306WriteCmd(SSD1306_DISPLAYON);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -137,6 +139,7 @@ bool getCharging() {
 // -------------------------------------------------------------------------------------------------
 // This face looks great with the cp437 font, but it's 8x8 and just too wide (128 / 8 == 16 chars
 // per row, not enough for the ~20 we need.)
+// {{{ DOS FACE
 
 #if 0
 void printDOSFace(int8_t month, int8_t day, int8_t hour, int8_t minute, int16_t battery, int16_t temp) {
@@ -189,6 +192,7 @@ void printDOSFace(int8_t month, int8_t day, int8_t hour, int8_t minute, int16_t 
   oled.print("C:\\>_");
 }
 #endif
+// }}}
 
 // -------------------------------------------------------------------------------------------------
 // A `top` alternative:
@@ -254,47 +258,15 @@ void printPsFace(int8_t month, int8_t day, int8_t hour, int8_t minute, int16_t b
 
 // -------------------------------------------------------------------------------------------------
 
-void temp_sleepAndFlash() {
-  // Flash 3 times.
-  for (int16_t count = 0; count < 3; count++) {
-    delay(950);
-    digitalWrite(c_rightLedPin, HIGH);
-    delay(50);
-    digitalWrite(c_rightLedPin, LOW);
-  }
-
-  powerDown();
-
-  digitalWrite(c_leftLedPin, HIGH);
-  delay(1000);
-  digitalWrite(c_leftLedPin, LOW);
-}
-
 void loop() {
-#if 0
-  digitalWrite(c_leftLedPin, HIGH);
-  delay(10000);
-  digitalWrite(c_leftLedPin, LOW);
-
-  temp_sleepAndFlash();
-#else
-
-  delay(2000);
-
+  // Show the time, battery and temp for 4 seconds.
   rtc.refresh();
   printPsFace(rtc.month(), rtc.day(), rtc.hour(), rtc.minute(),
               static_cast<int16_t>(getRawBattery()), rtc.temp());
+  delay(4000);
 
-  if (getUsbPowered()) {
-    digitalWrite(c_leftLedPin, HIGH);
-  }
-  if (getCharging()) {
-    digitalWrite(c_rightLedPin, HIGH);
-  }
-  delay(100);
-  digitalWrite(c_leftLedPin, LOW);
-  digitalWrite(c_rightLedPin, LOW);
-#endif
+  // Power down
+  powerDown();
 }
 
 // =================================================================================================
