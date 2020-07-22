@@ -5,13 +5,11 @@
 #include <avr/power.h>
 #include <avr/sleep.h>
 
-#include <SSD1306Ascii.h>
-#include <SSD1306AsciiSpi.h>
 #include <uRTCLib.h>
 #include <YetAnotherPcInt.h>
 
-#define FONT_TO_USE font5x7
-#include "font5x7.h"
+#include "ssd1306.h"
+#include "face-lines.h"
 
 // -------------------------------------------------------------------------------------------------
 
@@ -30,6 +28,7 @@ constexpr int8_t c_batteryPin = A11;
 constexpr int8_t c_chargingPin = 5;
 
 constexpr int32_t c_defaultShowtimeTimeoutMs = 8000;
+constexpr int32_t c_linesFaceAnimDelay = 100;
 
 // -------------------------------------------------------------------------------------------------
 // Button state and interrupt handlers.
@@ -49,7 +48,7 @@ void buttonLrbIsr(bool pinState) {
 // -------------------------------------------------------------------------------------------------
 // Global instances.
 
-SSD1306AsciiSpi g_oled;
+SSD1306  g_display;
 uRTCLib g_rtc(URTCLIB_ADDRESS);   // I2C address.
 
 // -------------------------------------------------------------------------------------------------
@@ -80,9 +79,8 @@ void setup() {
   g_rtc.set_model(URTCLIB_MODEL_DS3231);
 
   // Init the display.
-  g_oled.begin(&Adafruit128x64, c_oledChipSelectPin, c_oledDataCommandPin, c_oledResetPin);
-  g_oled.setFont(FONT_TO_USE);
-  g_oled.clear();
+  g_display.initialise();
+  g_display.clear();
 
   // Read the current date and time from the serial port just once.
   if (getUsbAttached()) {
@@ -94,7 +92,7 @@ void setup() {
 
 void powerDown() {
   // Power down everything.
-  g_oled.ssd1306WriteCmd(SSD1306_DISPLAYOFF);
+  g_display.turnOff();
   power_adc_disable();
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
@@ -107,7 +105,7 @@ void powerDown() {
   // Power up.
   sleep_disable();
   power_adc_enable();
-  g_oled.ssd1306WriteCmd(SSD1306_DISPLAYON);
+  g_display.turnOn();
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -118,6 +116,11 @@ float getRawBattery() {
   float value = analogRead(c_batteryPin);
   digitalWrite(c_batteryReadEnablePin, LOW);
   return value;
+}
+
+int16_t getBatteryPc() {
+  int16_t rawLevel = static_cast<int16_t>(getRawBattery());
+  return min(100, rawLevel - 530);
 }
 
 bool getUsbAttached() {
@@ -142,12 +145,6 @@ bool getCharging() {
 // for the correct values (year, month, day, etc.) one after the other.
 
 bool readDateTimeFromSerial() {
-  // Display an info message on the display.
-  g_oled.setCursor(0, 3);
-  g_oled.print("Waiting for time to");
-  g_oled.setCursor(0, 4);
-  g_oled.print("be set from serial...");
-
   Serial.begin(9600);
   Serial.setTimeout(60 * 1000);
 
@@ -178,140 +175,43 @@ bool readDateTimeFromSerial() {
   }
 
   Serial.end();
-  g_oled.clear();
 }
 
 // -------------------------------------------------------------------------------------------------
-// This face looks great with the cp437 font, but it's 8x8 and just too wide (128 / 8 == 16 chars
-// per row, not enough for the ~20 we need.)
-// {{{ DOS FACE
 
-#if 0
-void printDOSFace(int8_t month, int8_t day, int8_t hour, int8_t minute, int16_t battery, int16_t temp) {
-  auto printTimeFormat = [](int8_t first, int8_t second) {
-    g_oled.print(first / 10);
-    g_oled.print(first % 10);
-    g_oled.print(':');
-    g_oled.print(second / 10);
-    g_oled.print(second % 10);
-  };
+bool hasElapsedMillis(uint32_t startMillis, int32_t period) {
+    uint32_t curMillis = millis();
+    if (curMillis >= startMillis) {
+      // Has not overflowed.
+      return (curMillis - startMillis) >= period;
+    }
 
-  // Use 12 hour time.
-  if (hour > 12) {
-    hour -= 12;
-  }
-
-  // First line: Directory of C:/
-  g_oled.setCursor(0, 0);
-  g_oled.print("Directory of C:\\");
-
-  // Second line: autoexec.bat with time.
-  g_oled.setCursor(0, 2);
-  g_oled.print("AUTOEXEC  BAT   ");
-  printTimeFormat(hour, minute);
-
-  // Third line: config.sys with date.
-  g_oled.setCursor(0, 3);
-  g_oled.print("CONFIG    SYS   ");
-  printTimeFormat(month, day);
-
-  // Fourth line: games directory.
-  g_oled.setCursor(0, 4);
-  g_oled.print("GAMES    <DIR>  ");
-
-  // Fifth line: file and bytes counts with temperature.
-  g_oled.setCursor(0, 5);
-  g_oled.print(" 3 file(s) ");
-  g_oled.print(temp);
-  g_oled.print(" bytes");
-  g_oled.clearToEOL();
-
-  // Sixth line: bytes free with battery.
-  g_oled.setCursor(0, 6);
-  g_oled.print(' ');
-  g_oled.print(battery);
-  g_oled.print(" bytes free");
-
-  // Seventh line: command prompt.
-  g_oled.setCursor(0, 7);
-  g_oled.print("C:\\>_");
-}
-#endif
-// }}}
-
-// -------------------------------------------------------------------------------------------------
-// A `top` alternative:
-//
-// 12:34 up 6:51  1 user
-// load avg: 0.5,2.5,0.3
-// mem: 123KB swap: 40KB
-// PID USER %CPU COMMAND
-// 1   root 0.0  init
-// 16  root 0.1  sshd
-// 23  root 0.0  etc...
-// 45  toby  99  somet
-
-// -------------------------------------------------------------------------------------------------
-// This face mimics the output of `ps -ax`.
-
-void printPsFace(int8_t month, int8_t day, int8_t hour, int8_t minute, int16_t battery, int16_t temp) {
-  // Use 12 hour time.
-  //if (hour > 12) {
-  //  hour -= 12;
-  //}
-
-  g_oled.setCursor(0, 0);
-  g_oled.print("$ ps -ax");
-
-  g_oled.setCursor(0, 1);
-  g_oled.print("PID TTY TIME  CMD");
-
-  g_oled.setCursor(0, 2);
-  g_oled.print("  0  -  ");
-  g_oled.print(hour / 10); g_oled.print(hour % 10);
-  g_oled.print(':');
-  g_oled.print(minute / 10); g_oled.print(minute % 10);
-  g_oled.print(" kernel");
-
-  g_oled.setCursor(0, 3);
-  g_oled.print("  1  -  ");
-  g_oled.print(month / 10); g_oled.print(month % 10);
-  g_oled.print(':');
-  g_oled.print(day / 10); g_oled.print(day % 10);
-  g_oled.print(" init");
-
-  g_oled.setCursor(0, 4);
-  g_oled.print(" 12  -  89:47 [idle]");
-
-  g_oled.setCursor(0, 5);
-  g_oled.print(" 54  -  02:17 sshd");
-
-  g_oled.setCursor(0, 6);
-  g_oled.print(battery);
-  g_oled.print("  0  00:42 bash");
-
-  g_oled.setCursor(0, 7);
-  g_oled.print("722  0  ");
-  g_oled.print(temp / 1000);
-  g_oled.print((temp / 100) % 10);
-  g_oled.print(':');
-  g_oled.print((temp / 10) % 10);
-  g_oled.print(temp % 10);
-  g_oled.print(" ps");
-  g_oled.clearToEOL();
+    // Has overflowed.
+    return ((0xffffffff - startMillis) + 1 + curMillis) >= period;
 }
 
 // -------------------------------------------------------------------------------------------------
 
 void loop() {
-  // Show the time, battery and temp for 4 seconds.
+  // Show the time and battery for a while.  Get the current time first.
   g_rtc.refresh();
-  printPsFace(g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(),
-              static_cast<int16_t>(getRawBattery()), g_rtc.temp());
-  delay(c_defaultShowtimeTimeoutMs);
 
-  // Power down
-  powerDown();
+  // We animate the Lines face, redrawing it periodically.
+  uint32_t startMillis = millis();
+  while (true) {
+    printLinesFace(g_display,
+                   g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.dayOfWeek(),
+                   getBatteryPc());
+    if (hasElapsedMillis(startMillis, c_defaultShowtimeTimeoutMs)) {
+      break;
+    }
+    delay(c_linesFaceAnimDelay);
+  }
+
+  // Power down if we're not connected (and are mostly likely developing/debugging).
+  if (!getUsbAttached()) {
+    powerDown();
+  }
 }
 
 // =================================================================================================
