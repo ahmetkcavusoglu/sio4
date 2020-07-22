@@ -29,10 +29,6 @@ constexpr int8_t c_batteryPin = A11;
 
 constexpr int8_t c_chargingPin = 5;
 
-constexpr int8_t c_oledDataCommandPin = A3;
-constexpr int8_t c_oledChipSelectPin = A5;
-constexpr int8_t c_oledResetPin = A4;
-
 constexpr int32_t c_defaultShowtimeTimeoutMs = 8000;
 
 // -------------------------------------------------------------------------------------------------
