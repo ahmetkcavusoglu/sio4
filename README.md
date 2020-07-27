@@ -12,7 +12,7 @@ It's currently very basic.  You can press the lower right button to show the wat
 
 ### Features
 
- - Tells the time, date, temp and battery level on a faux `ps -ax` watch face.
+ - Tells the time, date and battery level on an animated jittery, scribbly watch face.
  - Easily lasts all day, probably two, on a single charge.
  - Allows setting the time over the serial connection.
 
@@ -21,13 +21,12 @@ It's currently very basic.  You can press the lower right button to show the wat
  - Simple stuff like showing the day of the week and glowing a LED when connected and/or charging.
  - Gestures to show the time (rather than a button press).
  - BLE support for synchronising useful data (like the time, weather, sunrise/sunset or moon phase).
- - Better watch faces.
+ - Other watch faces.
 
 ## Dependencies
 
 Install these via the Arduino library manager:
 
- - [SSD1306Ascii](https://github.com/greiman/SSD1306Ascii) - for writing text to the display.
  - [uRTCLib](https://github.com/Naguissa/uRTCLib) - for accessing the RTC.
  - [YetAnotherPcInt](https://github.com/paulo-raca/YetAnotherArduinoPcIntLibrary) - for button interrupts.
 
@@ -37,8 +36,9 @@ On reset the firmware will check if there's a current USB/serial connection.  If
 
 I use [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty) on Windows to connect to the COM port attached to the watch to do this.  You can't connect while the Arduino programmer is running (and vice-versa) so you need to connect just after writing the firmware.  The watch will wait 10 seconds after reset for you to connect and then prompt you for the values it needs.
 
-## The `ps -ax` Watch Face
+## The Watch Faces
 
-Here's a [gif on Giphy](https://media.giphy.com/media/UtP27vEWcgTxiksHSQ/giphy.gif) showing my watch with a Sugru 'case' and the `ps -ax` watch face.
+Here's a [gif on Giphy](https://giphy.com/gifs/UtP27vEWcgTxiksHSQ/html5) showing my watch with a Sugru 'case' and an older `ps -ax` watch face.
 
+And here's another [gif on Giphy](https://giphy.com/gifs/ZFEoJ0l3QtqALSpcTs/html5) showing it with the scribbly, jittery watch face.
 
