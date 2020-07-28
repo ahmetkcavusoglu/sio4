@@ -10,10 +10,9 @@
 
 #include "ssd1306.h"
 #include "face-lines.h"
+#include "lines.h"
 
 // -------------------------------------------------------------------------------------------------
-
-// XXX don't forget about PROGMEM either, for static buffers...
 
 constexpr int8_t c_upperLeftButtonPin = 8;
 constexpr int8_t c_upperRightButtonPin = 11;
@@ -150,28 +149,51 @@ bool readDateTimeFromSerial() {
 
   // Since this is happening at boot time we need to allow for a connection to be made before we
   // start prompting.
-  for (int countdown = 0; countdown < 10; countdown++) {
-    Serial.print("Prompting for date in... "); Serial.print(10 - countdown); Serial.println('s');
+  for (int countdown = 10; countdown > 0; countdown--) {
+    Serial.print("Prompting for date in... "); Serial.print(countdown); Serial.println('s');
+    g_display.clear();
+    if (countdown >= 10) {
+      drawNum(g_display, countdown / 10, 34, 20, 62, 48, true);
+      drawNum(g_display, countdown % 10, 66, 20, 94, 48, true);
+    } else {
+      drawNum(g_display, countdown, 50, 20, 78, 48, true);
+    }
+    g_display.flush();
     delay(1000);
   }
 
-  auto readValueWithPrompt = [](const char* prompt) -> uint8_t {
-    Serial.print(prompt);
-    uint8_t value = Serial.parseInt();
-    Serial.print("Got: "); Serial.println(value);
-    return value;
-  };
+  // Double check that the USB connection is still there.  This way we can abort setting the time by
+  // unplugging the watch just after programming it.
+  if (getUsbAttached()) {
+    g_display.clear();
+    drawLetter(g_display, 'r',  4, 50, 12, 60, false);
+    drawLetter(g_display, 'e', 14, 50, 22, 60, false);
+    drawLetter(g_display, 'a', 24, 50, 32, 60, false);
+    drawLetter(g_display, 'd', 34, 50, 42, 60, false);
+    drawLetter(g_display, 't', 54, 50, 62, 60, false);
+    drawLetter(g_display, 'i', 64, 50, 72, 60, false);
+    drawLetter(g_display, 'm', 74, 50, 82, 60, false);
+    drawLetter(g_display, 'e', 84, 50, 92, 60, false);
+    g_display.flush();
 
-  // If year is a zero then we probably had a timeout (it's not Y2K) and so we can just abort.
-  uint8_t year = readValueWithPrompt("Year? (00-99, 0 to skip) ");
-  if (year != 0) {
-    uint8_t month = readValueWithPrompt("Month? (1-12) ");
-    uint8_t day = readValueWithPrompt("Day? (1-31) ");
-    uint8_t dayOfWeek = readValueWithPrompt("Weekday? (S 0, M 1, T 2, W 3, T 4, F 5, S 6) ");
-    uint8_t hour = readValueWithPrompt("Hour? (0-23) ");
-    uint8_t minute = readValueWithPrompt("Minute? (0-59) ");
+    auto readValueWithPrompt = [](const char* prompt) -> uint8_t {
+      Serial.print(prompt);
+      uint8_t value = Serial.parseInt();
+      Serial.print("Got: "); Serial.println(value);
+      return value;
+    };
 
-    g_rtc.set(0, minute, hour, dayOfWeek, day, month, year);
+    // If year is a zero then we probably had a timeout (it's not Y2K) and so we can just abort.
+    uint8_t year = readValueWithPrompt("Year? (00-99, 0 to skip) ");
+    if (year != 0) {
+      uint8_t month = readValueWithPrompt("Month? (1-12) ");
+      uint8_t day = readValueWithPrompt("Day? (1-31) ");
+      uint8_t dayOfWeek = readValueWithPrompt("Weekday? (S 0, M 1, T 2, W 3, T 4, F 5, S 6) ");
+      uint8_t hour = readValueWithPrompt("Hour? (0-23) ");
+      uint8_t minute = readValueWithPrompt("Minute? (0-59) ");
+
+      g_rtc.set(0, minute, hour, dayOfWeek, day, month, year);
+    }
   }
 
   Serial.end();
