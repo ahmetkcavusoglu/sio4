@@ -120,7 +120,7 @@ float getRawBattery() {
 
 int16_t getBatteryPc() {
   int16_t rawLevel = static_cast<int16_t>(getRawBattery());
-  return min(100, rawLevel - 530);
+  return min(100, rawLevel - 540);
 }
 
 bool getUsbAttached() {
@@ -198,10 +198,10 @@ void loop() {
 
   // We animate the Lines face, redrawing it periodically.
   uint32_t startMillis = millis();
+  int16_t battPc = getBatteryPc();
   while (true) {
     printLinesFace(g_display,
-                   g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.dayOfWeek(),
-                   getBatteryPc());
+                   g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.dayOfWeek(), battPc);
     if (hasElapsedMillis(startMillis, c_defaultShowtimeTimeoutMs)) {
       break;
     }
