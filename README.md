@@ -34,7 +34,7 @@ Install these via the Arduino library manager:
 
 On reset the firmware will check if there's a current USB/serial connection.  If so it will ask for the current date and time via a series of questions.  **This is currently the only way to set the time.  To skip this step make sure to unplug the watch before the counter hits zero.**
 
-I use [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty) on Windows to connect to the COM port attached to the watch to do this.  You can't connect while the Arduino programmer is running (and vice-versa) so you need to connect just after writing the firmware.  The watch will wait 10 seconds after reset for you to connect and then prompt you for the values it needs.
+I use [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty) on Windows to connect to the COM port attached to the watch at 9600bps to do this.  You can't connect while the Arduino programmer is running (and vice-versa) so you need to connect just after writing the firmware.  The watch will wait 10 seconds after reset for you to connect and then prompt you for the values it needs.
 
 ## The Watch Faces
 
