@@ -140,7 +140,7 @@ void drawDate(SSD1306& display,
   uint16_t rand = xorShift();
   int8_t vertAdjust = ((rand >> 0) % 3) - 1;
 
-  char* dayNameAddr = pgm_read_word(&(dayNames[dayOfWeek]));
+  char* dayNameAddr = pgm_read_word(&(dayNames[dayOfWeek - 1]));
 
   // Write the day name.
   int8_t posLeft = left + ((rand >> 12) % 3) - 1;
@@ -182,14 +182,9 @@ void drawDate(SSD1306& display,
 void printLinesFace(SSD1306& display,
                     int8_t month, int8_t day, int8_t hour, int8_t minute, int8_t dayOfWeek,
                     int16_t batteryPc) {
-  bool isAm = true;
-  if (hour > 12) {
-    hour -= 12;
-    isAm = false;
-  }
-  if (hour == 0) {
-    hour = 12;
-  }
+  bool isAm = hour < 12;
+  if (hour == 0) { hour = 12;  }
+  if (hour > 12) { hour -= 12; }
 
   // We need to make sure there's room in our bounding boxes for the random adjustments.  Don't go
   // right to the edges of the display

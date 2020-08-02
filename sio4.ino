@@ -26,7 +26,7 @@ constexpr int8_t c_batteryPin = A11;
 
 constexpr int8_t c_chargingPin = 5;
 
-constexpr int32_t c_defaultShowtimeTimeoutMs = 8000;
+constexpr int32_t c_defaultShowtimeTimeoutMs = 4000;
 constexpr int32_t c_linesFaceAnimDelay = 100;
 
 // -------------------------------------------------------------------------------------------------
@@ -36,12 +36,9 @@ volatile bool upperLeftButtonPressed = false;
 volatile bool upperRightButtonPressed = false;
 volatile bool lowerRightButtonPressed = false;
 
-volatile int8_t interruptCount = 0;
-
 void buttonLrbIsr(bool pinState) {
   // We take the inverse reading as they're pulled high by default.
   lowerRightButtonPressed = !pinState;
-  interruptCount++;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -119,7 +116,7 @@ float getRawBattery() {
 
 int16_t getBatteryPc() {
   int16_t rawLevel = static_cast<int16_t>(getRawBattery());
-  return min(100, rawLevel - 540);
+  return max(0, min(100, rawLevel - 534));
 }
 
 bool getUsbAttached() {
@@ -188,7 +185,7 @@ bool readDateTimeFromSerial() {
     if (year != 0) {
       uint8_t month = readValueWithPrompt("Month? (1-12) ");
       uint8_t day = readValueWithPrompt("Day? (1-31) ");
-      uint8_t dayOfWeek = readValueWithPrompt("Weekday? (S 0, M 1, T 2, W 3, T 4, F 5, S 6) ");
+      uint8_t dayOfWeek = readValueWithPrompt("Weekday? (Su 1, Mo 2, Tu 3, We 4, Th 5, Fr 6, Sa 7) ");
       uint8_t hour = readValueWithPrompt("Hour? (0-23) ");
       uint8_t minute = readValueWithPrompt("Minute? (0-59) ");
 
