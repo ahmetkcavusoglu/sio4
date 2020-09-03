@@ -24,7 +24,7 @@ void drawTime(SSD1306& display,
   }
 
   int16_t width25 = fullWidth / 4;
-  drawNum(display, hour   % 10,
+  drawNum(display, hour % 10,
           left + width15 + gap, top,
           left + width15 + width25 - gap, bottom, true);
   drawNum(display, minute / 10,
@@ -36,6 +36,20 @@ void drawTime(SSD1306& display,
 
   int16_t width50 = fullWidth / 2;
   drawColon(display, 2, left + width15 + width25 + 1, top, left + width50 - 1, bottom, true);
+}
+
+// -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
+
+void drawSeconds(SSD1306& display,
+                 int8_t left, int8_t top, int8_t right, int8_t bottom, int8_t second) {
+  int8_t mid = getMid(left, right);
+  int8_t gap = 1;
+
+  uint16_t rand = xorShift();
+  int8_t vertAdjust = ((rand >> 0) % 3) - 1;
+  drawNum(display, second / 10, left, top + vertAdjust, mid - gap, bottom + vertAdjust, false);
+  vertAdjust = ((rand >> 2) % 3) - 1;
+  drawNum(display, second % 10, mid + gap, top + vertAdjust, right, bottom + vertAdjust, false);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -180,7 +194,8 @@ void drawDate(SSD1306& display,
 // Draw the time using lines.
 
 void printLinesFace(SSD1306& display,
-                    int8_t month, int8_t day, int8_t hour, int8_t minute, int8_t dayOfWeek,
+                    int8_t month, int8_t day, int8_t hour, int8_t minute, int8_t second,
+                    int8_t dayOfWeek,
                     int16_t batteryPc) {
   bool isAm = hour < 12;
   if (hour == 0) { hour = 12;  }
@@ -191,6 +206,7 @@ void printLinesFace(SSD1306& display,
   display.clear();
   drawTime(display, 4, 4, 96, 46, hour, minute);
   drawTime(display, 5, 5, 95, 45, hour, minute);
+  drawSeconds(display, 100, 34, 124, 46, second);
   drawAmPm(display, 100, 8, 124, 30, isAm);
   drawDate(display, 4, 54, 96, 62, month, day, dayOfWeek);
   drawPercentage(display, 100, 54, 124, 62, batteryPc);

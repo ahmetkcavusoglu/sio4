@@ -198,34 +198,16 @@ bool readDateTimeFromSerial() {
 
 // -------------------------------------------------------------------------------------------------
 
-bool hasElapsedMillis(uint32_t startMillis, int32_t period) {
-    uint32_t curMillis = millis();
-    if (curMillis >= startMillis) {
-      // Has not overflowed.
-      return (curMillis - startMillis) >= period;
-    }
-
-    // Has overflowed.
-    return ((0xffffffff - startMillis) + 1 + curMillis) >= period;
-}
-
-// -------------------------------------------------------------------------------------------------
-
 void loop() {
   // Show the time and battery for a while.  Get the current time first.
   g_rtc.refresh();
 
-  // We animate the Lines face, redrawing it periodically.
-  uint32_t startMillis = millis();
-  int16_t battPc = getBatteryPc();
-  while (true) {
-    printLinesFace(g_display,
-                   g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.dayOfWeek(), battPc);
-    if (hasElapsedMillis(startMillis, c_defaultShowtimeTimeoutMs)) {
-      break;
-    }
-    delay(c_linesFaceAnimDelay);
-  }
+  // Show the Lines face.
+  printLinesFace(g_display,
+                 g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.second(),
+                 g_rtc.dayOfWeek(),
+                 getBatteryPc());
+  delay(c_defaultShowtimeTimeoutMs);
 
   // Power down if we're not connected (and are mostly likely developing/debugging).
   if (!getUsbAttached()) {
