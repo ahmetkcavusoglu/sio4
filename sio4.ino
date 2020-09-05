@@ -26,19 +26,31 @@ constexpr int8_t c_batteryPin = A11;
 
 constexpr int8_t c_chargingPin = 5;
 
+constexpr int8_t c_rtcAlarmPin = 1;
+
+constexpr int8_t c_buzzerPin = 9;
+
 constexpr int32_t c_defaultShowtimeTimeoutMs = 4000;
 constexpr int32_t c_linesFaceAnimDelay = 100;
 
 // -------------------------------------------------------------------------------------------------
 // Button state and interrupt handlers.
 
-volatile bool upperLeftButtonPressed = false;
-volatile bool upperRightButtonPressed = false;
-volatile bool lowerRightButtonPressed = false;
+//volatile bool g_upperLeftButtonPressed = false;
+//volatile bool g_upperRightButtonPressed = false;
+volatile bool g_lowerRightButtonPressed = false;
 
-void buttonLrbIsr(bool pinState) {
-  // We take the inverse reading as they're pulled high by default.
-  lowerRightButtonPressed = !pinState;
+void buttonLrbIsr(bool ) {
+  g_lowerRightButtonPressed = true;
+}
+
+// -------------------------------------------------------------------------------------------------
+// Clock alarm interrupt handler.
+
+volatile bool g_isAlarmed = false;
+
+void rtcAlarmIsr() {
+  g_isAlarmed = true;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -65,14 +77,22 @@ void setup() {
   pinMode(c_batteryReadEnablePin, OUTPUT);
   pinMode(c_chargingPin, INPUT_PULLUP);
 
+  // Set the RTC alarm pin for input.
+  pinMode(c_rtcAlarmPin, INPUT_PULLUP);
+
   // Enable USB VBUS pad so we can read the power state from the USB status register.
   USBCON |= bit(OTGPADE);
 
-  // Install an ISR for LRB.
-  PcInt::attachInterrupt(c_lowerRightButtonPin, buttonLrbIsr, CHANGE);
+  // Install an ISR for LRB and alarm.
+  PcInt::attachInterrupt(c_lowerRightButtonPin, buttonLrbIsr, FALLING);
+  attachInterrupt(digitalPinToInterrupt(c_rtcAlarmPin), rtcAlarmIsr, FALLING);
 
   // Init the RTC.
   g_rtc.set_model(URTCLIB_MODEL_DS3231);
+
+  // Alarm 1 is every hour on the hour.
+  g_rtc.alarmClearFlag(URTCLIB_ALARM_1);
+  g_rtc.alarmSet(URTCLIB_ALARM_TYPE_1_FIXED_MS, 0, 0, 0, 0);
 
   // Init the display.
   g_display.initialise();
@@ -197,17 +217,44 @@ bool readDateTimeFromSerial() {
 }
 
 // -------------------------------------------------------------------------------------------------
+// Generally we just sleep to save power.
+//
+// We can wake for two reasons:
+// - A lower right button press for which we show the time.
+// - An on the hour alarm for which we beep.
 
 void loop() {
-  // Show the time and battery for a while.  Get the current time first.
+  // Get the current time first.
   g_rtc.refresh();
 
-  // Show the Lines face.
-  printLinesFace(g_display,
-                 g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.second(),
-                 g_rtc.dayOfWeek(),
-                 getBatteryPc());
-  delay(c_defaultShowtimeTimeoutMs);
+  if (g_lowerRightButtonPressed) {
+    // Acknowledge and clear.
+    g_lowerRightButtonPressed = false;
+
+    // Show the time and battery for a while.
+    printLinesFace(g_display,
+                   g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.second(),
+                   g_rtc.dayOfWeek(),
+                   getBatteryPc());
+
+    // Wait for a bit.
+    delay(c_defaultShowtimeTimeoutMs);
+  }
+
+  if (g_isAlarmed) {
+    // Acknowledge and clear.
+    g_rtc.alarmClearFlag(URTCLIB_ALARM_1);
+    g_isAlarmed = false;
+
+    // Ignore after hours.
+    uint8_t hour = g_rtc.hour();
+    if (hour >= 9 && hour <= 23) {
+        // Do a little beep.  Args are pin, freq Hz and duration ms.
+        tone(c_buzzerPin, 2000, 50); delay(50);
+        tone(c_buzzerPin, 3000, 50); delay(50);
+        tone(c_buzzerPin, 2000, 50); delay(50);
+    }
+  }
 
   // Power down if we're not connected (and are mostly likely developing/debugging).
   if (!getUsbAttached()) {
