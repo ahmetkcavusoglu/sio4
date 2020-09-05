@@ -30,8 +30,8 @@ constexpr int8_t c_rtcAlarmPin = 1;
 
 constexpr int8_t c_buzzerPin = 9;
 
-constexpr int32_t c_defaultShowtimeTimeoutMs = 4000;
-constexpr int32_t c_linesFaceAnimDelay = 100;
+constexpr uint32_t c_showTimeTimeoutMs = 4000;
+constexpr uint32_t c_faceAnimDelayMs = 333;
 
 // -------------------------------------------------------------------------------------------------
 // Button state and interrupt handlers.
@@ -217,36 +217,51 @@ bool readDateTimeFromSerial() {
 }
 
 // -------------------------------------------------------------------------------------------------
+// Here's a dumb check for elapsed time, checking if a millis() value has passed but accounting for
+// overflow.
+//
+// futureMillis is expected to be a value taken at some point using millis() + duration.  nowMillis
+// must be from a recent call to millis().
+
+bool hasElapsed(uint32_t nowMillis, uint32_t futureMillis) {
+  constexpr uint32_t oneDayMs = 86400000;
+  if (futureMillis < nowMillis) {
+    return (nowMillis - futureMillis) < oneDayMs;
+  }
+  return futureMillis - nowMillis > oneDayMs;
+}
+
+// -------------------------------------------------------------------------------------------------
 // Generally we just sleep to save power.
 //
 // We can wake for two reasons:
 // - A lower right button press for which we show the time.
 // - An on the hour alarm for which we beep.
 
-void loop() {
-  // Get the current time first.
-  g_rtc.refresh();
+bool g_showingTime = false;           // Are we currently awake and showing the time?
+uint32_t g_nextTimeRefreshTime = 0;   // When do we next update the display?
+uint32_t g_stopShowingTime = 0;       // When do we next turn it off and go back to sleep?
 
+void loop() {
+  uint32_t nowMillis = millis();
+
+  // Check our global flags which may be set by interrupts.
   if (g_lowerRightButtonPressed) {
     // Acknowledge and clear.
     g_lowerRightButtonPressed = false;
 
-    // Show the time and battery for a while.
-    printLinesFace(g_display,
-                   g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.second(),
-                   g_rtc.dayOfWeek(),
-                   getBatteryPc());
-
-    // Wait for a bit.
-    delay(c_defaultShowtimeTimeoutMs);
+    // Turn on the display and note when to eventually stop.  Next refresh time will already be in
+    // the past, which will force an immediate refresh.
+    g_showingTime = true;
+    g_stopShowingTime = nowMillis + c_showTimeTimeoutMs;
   }
-
   if (g_isAlarmed) {
     // Acknowledge and clear.
     g_rtc.alarmClearFlag(URTCLIB_ALARM_1);
     g_isAlarmed = false;
 
     // Ignore after hours.
+    g_rtc.refresh();
     uint8_t hour = g_rtc.hour();
     if (hour >= 9 && hour <= 23) {
         // Do a little beep.  Args are pin, freq Hz and duration ms.
@@ -256,9 +271,30 @@ void loop() {
     }
   }
 
-  // Power down if we're not connected (and are mostly likely developing/debugging).
-  if (!getUsbAttached()) {
-    powerDown();
+  // Show the time if required.
+  if (g_showingTime) {
+    if (hasElapsed(nowMillis, g_nextTimeRefreshTime)) {
+      // Show the watch face.
+      g_rtc.refresh();
+      printLinesFace(g_display,
+                     g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.second(),
+                     g_rtc.dayOfWeek(),
+                     getBatteryPc());
+
+      // Mark the next time to update it.
+      g_nextTimeRefreshTime = nowMillis + c_faceAnimDelayMs;
+    }
+
+    if (hasElapsed(nowMillis, g_stopShowingTime)) {
+      // Time to stop showing the watch face.
+      g_showingTime = false;
+    }
+  } else {
+    // We're not showing the time; go to sleep if we're not connected (and are mostly likely
+    // developing/debugging).
+    if (!getUsbAttached()) {
+      powerDown();
+    }
   }
 }
 
