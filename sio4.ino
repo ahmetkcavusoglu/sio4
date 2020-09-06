@@ -31,7 +31,6 @@ constexpr int8_t c_rtcAlarmPin = 1;
 constexpr int8_t c_buzzerPin = 9;
 
 constexpr uint32_t c_showTimeTimeoutMs = 4000;
-constexpr uint32_t c_battRefreshDelayMs = 60000;
 
 // -------------------------------------------------------------------------------------------------
 // Button state and interrupt handlers.
@@ -222,11 +221,14 @@ bool readDateTimeFromSerial() {
 //
 // futureMillis is expected to be a value taken at some point using millis() + duration.  nowMillis
 // must be from a recent call to millis().
+//
+// Remember, millis() does not increment while we're sleeping!  This cannot be used reliably for
+// longer term durations where we might power down between now and future checks.
 
 bool hasElapsed(uint32_t nowMillis, uint32_t futureMillis) {
   constexpr uint32_t oneDayMs = 86400000;
   if (futureMillis < nowMillis) {
-    return (nowMillis - futureMillis) < oneDayMs;
+    return nowMillis - futureMillis < oneDayMs;
   }
   return futureMillis - nowMillis > oneDayMs;
 }
@@ -241,9 +243,6 @@ bool hasElapsed(uint32_t nowMillis, uint32_t futureMillis) {
 bool g_showingTime = false;           // Are we currently awake and showing the time?
 bool g_refreshTime = false;           // Whether to refresh the display with the time.
 uint32_t g_stopShowingTime = 0;       // When do we next turn it off and go back to sleep?
-
-uint32_t g_nextBattRefreshTime = 0;   // When do we next fetch the battery level?
-uint8_t g_battPc = 0;                 // Most recent battery reading.
 
 void loop() {
   uint32_t nowMillis = millis();
@@ -274,19 +273,13 @@ void loop() {
     }
   }
 
-  // Read the battery if we're due.
-  if (hasElapsed(nowMillis, g_nextBattRefreshTime)) {
-    g_battPc = getBatteryPc();
-    g_nextBattRefreshTime = nowMillis + c_battRefreshDelayMs;
-  }
-
   // Show the time if required.
   if (g_refreshTime) {
     g_rtc.refresh();
     printLinesFace(g_display,
                    g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.second(),
                    g_rtc.dayOfWeek(),
-                   g_battPc);
+                   getBatteryPc());
     g_refreshTime = false;
   }
 
