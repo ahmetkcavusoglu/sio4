@@ -31,7 +31,6 @@ constexpr int8_t c_rtcAlarmPin = 1;
 constexpr int8_t c_buzzerPin = 9;
 
 constexpr uint32_t c_showTimeTimeoutMs = 4000;
-constexpr uint32_t c_faceAnimDelayMs = 333;
 constexpr uint32_t c_battRefreshDelayMs = 60000;
 
 // -------------------------------------------------------------------------------------------------
@@ -240,7 +239,7 @@ bool hasElapsed(uint32_t nowMillis, uint32_t futureMillis) {
 // - An on the hour alarm for which we beep.
 
 bool g_showingTime = false;           // Are we currently awake and showing the time?
-uint32_t g_nextTimeRefreshTime = 0;   // When do we next update the display?
+bool g_refreshTime = false;           // Whether to refresh the display with the time.
 uint32_t g_stopShowingTime = 0;       // When do we next turn it off and go back to sleep?
 
 uint32_t g_nextBattRefreshTime = 0;   // When do we next fetch the battery level?
@@ -254,9 +253,9 @@ void loop() {
     // Acknowledge and clear.
     g_lowerRightButtonPressed = false;
 
-    // Turn on the display and note when to eventually stop.  Next refresh time will already be in
-    // the past, which will force an immediate refresh.
+    // Show the time.
     g_showingTime = true;
+    g_refreshTime = true;
     g_stopShowingTime = nowMillis + c_showTimeTimeoutMs;
   }
   if (g_isAlarmed) {
@@ -282,29 +281,22 @@ void loop() {
   }
 
   // Show the time if required.
-  if (g_showingTime) {
-    if (hasElapsed(nowMillis, g_nextTimeRefreshTime)) {
-      // Show the watch face.
-      g_rtc.refresh();
-      printLinesFace(g_display,
-                     g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.second(),
-                     g_rtc.dayOfWeek(),
-                     g_battPc);
+  if (g_refreshTime) {
+    g_rtc.refresh();
+    printLinesFace(g_display,
+                   g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.second(),
+                   g_rtc.dayOfWeek(),
+                   g_battPc);
+    g_refreshTime = false;
+  }
 
-      // Mark the next time to update it.
-      g_nextTimeRefreshTime = nowMillis + c_faceAnimDelayMs;
-    }
+  if (hasElapsed(nowMillis, g_stopShowingTime)) {
+    g_showingTime = false;
+  }
 
-    if (hasElapsed(nowMillis, g_stopShowingTime)) {
-      // Time to stop showing the watch face.
-      g_showingTime = false;
-    }
-  } else {
-    // We're not showing the time; go to sleep if we're not connected (and are mostly likely
-    // developing/debugging).
-    if (!getUsbAttached()) {
-      powerDown();
-    }
+  if (!g_showingTime) {
+    // We're not busy doing anything else, go to sleep.
+    powerDown();
   }
 }
 

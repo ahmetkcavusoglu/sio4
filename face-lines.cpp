@@ -206,7 +206,7 @@ void printLinesFace(SSD1306& display,
   display.clear();
   drawTime(display, 4, 4, 96, 46, hour, minute);
   drawTime(display, 5, 5, 95, 45, hour, minute);
-  drawSeconds(display, 100, 34, 124, 46, second);
+  //drawSeconds(display, 100, 34, 124, 46, second);
   drawAmPm(display, 100, 8, 124, 30, isAm);
   drawDate(display, 4, 54, 96, 62, month, day, dayOfWeek);
   drawPercentage(display, 100, 54, 124, 62, batteryPc);
