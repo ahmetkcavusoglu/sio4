@@ -32,6 +32,7 @@ constexpr int8_t c_buzzerPin = 9;
 
 constexpr uint32_t c_showTimeTimeoutMs = 4000;
 constexpr uint32_t c_faceAnimDelayMs = 333;
+constexpr uint32_t c_battRefreshDelayMs = 60000;
 
 // -------------------------------------------------------------------------------------------------
 // Button state and interrupt handlers.
@@ -242,6 +243,9 @@ bool g_showingTime = false;           // Are we currently awake and showing the 
 uint32_t g_nextTimeRefreshTime = 0;   // When do we next update the display?
 uint32_t g_stopShowingTime = 0;       // When do we next turn it off and go back to sleep?
 
+uint32_t g_nextBattRefreshTime = 0;   // When do we next fetch the battery level?
+uint8_t g_battPc = 0;                 // Most recent battery reading.
+
 void loop() {
   uint32_t nowMillis = millis();
 
@@ -271,6 +275,12 @@ void loop() {
     }
   }
 
+  // Read the battery if we're due.
+  if (hasElapsed(nowMillis, g_nextBattRefreshTime)) {
+    g_battPc = getBatteryPc();
+    g_nextBattRefreshTime = nowMillis + c_battRefreshDelayMs;
+  }
+
   // Show the time if required.
   if (g_showingTime) {
     if (hasElapsed(nowMillis, g_nextTimeRefreshTime)) {
@@ -279,7 +289,7 @@ void loop() {
       printLinesFace(g_display,
                      g_rtc.month(), g_rtc.day(), g_rtc.hour(), g_rtc.minute(), g_rtc.second(),
                      g_rtc.dayOfWeek(),
-                     getBatteryPc());
+                     g_battPc);
 
       // Mark the next time to update it.
       g_nextTimeRefreshTime = nowMillis + c_faceAnimDelayMs;
