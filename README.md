@@ -1,6 +1,6 @@
 # SiO4 - A WatchX Firmware
 
-For the fabulous [WatchX](https://watchx.io/) Arduino smart watch.
+For the fabulous [watchX](https://watchx.io/) Arduino smart watch.
 
 ## About
 
